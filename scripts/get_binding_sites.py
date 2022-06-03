@@ -1,21 +1,27 @@
+#!/usr/bin/env python
+
 import sys
-import pandas as pd
+import numpy as np
+import scipy.stats as stats
 
-binding_sites = []
 
-for data in pd.read_csv(
-    sys.argv[1],
-    sep="\t",
-    header=None,
-    usecols=[0, 1, 2, 3, 5, 6],
-    names=["gene", "exon", "chr", "pos", "strand", "entropy"],
-    chunksize=100000,
-):
-    data[["gene", "exon"]] = data[["gene", "exon"]].apply(
-        lambda x: x.str.strip(";")
-    )
-    data = data[data["entropy"] > 0.8]
-    binding_sites.append(data)
+def get_shannon_entropy(matches: str):
+    base, counts = np.unique(list(matches), return_counts=True)
+    if len(base) <= 1 or np.sum(counts) <= 0:
+        return 0
+    return stats.entropy(counts / np.sum(counts))
 
-binding_sites = pd.concat(binding_sites, axis=0, ignore_index=True)
-print(binding_sites.to_csv(sep="\t", index=False, header=True))
+
+filename = sys.argv[1]
+entropy_threshold = float(sys.argv[2])
+
+with open(filename, "r") as f:
+    for row in f:
+        try:
+            chrom, pos, depth, matches = row.rstrip("\n").split(maxsplit=3)
+            entropy = get_shannon_entropy(matches)
+            if entropy < entropy_threshold:
+                continue
+        except:
+            continue
+        print(f"{chrom}\t{pos}\t{depth}\t{entropy}")
